@@ -25,11 +25,13 @@ I took the boilerplate code provided in the walkthrough and refactored it so tha
 
 Due to technical troubles getting the project setup, and running weeks behind, I submitted the project without any special AI. Using the default search method, wander_strategy(), and a threshold for navigable terrain (175,175,175), the rover wanders toward the center of its detected navigable terrain unless executing the escape_obstacle_strategy(). This enables the rover to map 70.1% of the terrain at 60.7% fidelity after about 3 minutes. It finds only a few of the rocks in this simulation. The rover does not pick up rocks, although it faithfully maps several of them. Lowering the terrain threshold to (160,160,160) or even lower to (120,120,120) allows the rover to accurately and quickly traverse up to 98% of the map and find every rock, although the fidelity drops below 50% pretty quickly. 
 
-![wander_strategy](./misc/wander_strategy.png)
+
+![wall_left_strategy](./misc/follow_left_strategy.png)
 
 The follow_wall_left() strategy was also implemented, enabling the rover to track the wall left by first seeking contact with a wall, then finding a parallel to the wall as its steering heading. This makes higher fidelity exploration possible, with 46.4% of the map explored and 68.2% fidelity after about a minute and 15 seconds. 
 
-![wall_left_strategy](./misc/follow_left_strategy.png)
+![wander_strategy](./misc/wander_strategy.png)
+
 
 
 This result meets the minimum for the project and can still be improved. I will be implementing improvements in the coming weeks:
