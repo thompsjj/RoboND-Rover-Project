@@ -1,5 +1,5 @@
 import numpy as np
-
+from sklearn import linear_model
 
 # This is where you can build a decision tree for determining throttle, brake and steer 
 # commands based on the output of the perception_step() function
@@ -28,6 +28,7 @@ def brake(Rover):
 
 def throttle_forward(Rover):
     Rover.throttle = Rover.throttle_set
+    Rover.brake = 0
     Rover.mode = 'forward'
     return True
 
@@ -44,6 +45,7 @@ def coast(Rover):
 
 def throttle_reverse(Rover):
     Rover.throttle = -Rover.throttle_set
+    Rover.brake = 0
     Rover.mode = 'reverse'
     return True
 
@@ -65,13 +67,27 @@ def is_stopped(Rover):
         return True
     return False
 
-def hard_turn(Rover):
+def hard_turn_right(Rover):
     Rover.throttle = 0
     # Release the brake to allow turning
     Rover.brake = 0
     # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
-    Rover.steer = -15  # Could be more clever here about which way to turn
-# If we're stopped but see sufficient navigable terrain in front then go!
+    Rover.steer = -15
+
+def hard_turn_left(Rover):
+    Rover.throttle = 0
+    # Release the brake to allow turning
+    Rover.brake = 0
+    # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
+    Rover.steer = 15
+
+def steer_left(Rover):
+    throttle_forward(Rover)
+    Rover.steer = 5
+
+def steer_right(Rover):
+    throttle_forward(Rover)
+    Rover.steer = -5
 
 def steer_to_center_of_view(Rover):
     # Release the brake
@@ -91,10 +107,9 @@ def escape_obstacle_strategy(Rover):
     if pathway_clear(Rover, Rover.go_forward):
         throttle_forward(Rover)
         steer_to_center_of_view(Rover)
-        Rover.state = 'escaping'
 
     else:
-        hard_turn(Rover)
+        hard_turn_right(Rover)
 
 
 def at_max_velocity(Rover):
@@ -102,14 +117,116 @@ def at_max_velocity(Rover):
         return False
     return True
 
-def explore_area(Rover):
+def get_directionality(Rover):
+
+    if Rover.yaw > 315.:
+        Rover.facing = 'N'
+    elif Rover.yaw > 45.:
+        if Rover.yaw < 135:
+            Rover.facing = 'E'
+        elif Rover.yaw < 225:
+            Rover.facing = 'S'
+        else:
+            Rover.facing = 'W'
+    else:
+        Rover.facing = 'N'
 
 
-    pass
+def peer_left(Rover, obj_type=0, world_size=200):
 
-def return_to_previous_location(Rover):
+    rover_x = np.clip(np.int_(Rover.pos[0]), 0, world_size - 1)
+    rover_y = np.clip(np.int_(Rover.pos[1]), 0, world_size - 1)
+    get_directionality(Rover)
 
-    pass
+    if Rover.facing == 'N':
+        return Rover.worldmap[rover_y:rover_x-1:obj_type]
+
+    elif Rover.facing == 'S':
+        return Rover.worldmap[rover_y:rover_x+1:obj_type]
+
+    elif Rover.facing == 'E':
+        return Rover.worldmap[rover_y+1:rover_x:obj_type]
+
+    elif Rover.facing == 'W':
+        return Rover.worldmap[rover_y-1:rover_x:obj_type]
+
+    else:
+        print('catastrophic failure decision.py:peer_left() line 156')
+        sys.exit(0)
+
+
+def peer_right(Rover, obj_type=0, world_size=200):
+
+    rover_x = np.clip(np.int_(Rover.pos[0]), 0, world_size - 1)
+    rover_y = np.clip(np.int_(Rover.pos[1]), 0, world_size - 1)
+    get_directionality(Rover)
+
+    if Rover.facing == 'N':
+        return Rover.worldmap[rover_y:rover_x + 1:obj_type]
+
+    elif Rover.facing == 'S':
+        return Rover.worldmap[rover_y:rover_x - 1:obj_type]
+
+    elif Rover.facing == 'E':
+        return Rover.worldmap[rover_y - 1:rover_x:obj_type]
+
+    elif Rover.facing == 'W':
+        return Rover.worldmap[rover_y + 1:rover_x:obj_type]
+
+    else:
+        print('catastrophic failure decision.py:peer_left() line 156')
+        sys.exit(0)
+
+def peer_front(Rover, threshold=10, world_size = 200, obj_type=0):
+
+    rover_x = np.clip(np.int_(Rover.pos[0]), 0, world_size - 1)
+    rover_y = np.clip(np.int_(Rover.pos[1]), 0, world_size - 1)
+    get_directionality(Rover)
+
+    if Rover.facing == 'N':
+        return Rover.worldmap[rover_y+1:rover_x:obj_type]
+
+    elif Rover.facing == 'S':
+        return Rover.worldmap[rover_y-1:rover_x:obj_type]
+
+    elif Rover.facing == 'E':
+        return Rover.worldmap[rover_y:rover_x+1:obj_type]
+
+    elif Rover.facing == 'W':
+        return Rover.worldmap[rover_y:rover_x-1:obj_type]
+
+    else:
+        print('catastrophic failure decision.py:peer_left() line 156')
+        sys.exit(0)
+
+def wall_in_front(Rover, threshold=10):
+    # use the rover's yaw as a direction-finding mechanism
+    if peer_front(Rover, 0) > threshold:
+        return True
+    return False
+
+def wall_to_left(Rover, threshold=10):
+
+    # use the rover's yaw as a direction-finding mechanism
+    if peer_left(Rover, 0) > threshold:
+        return True
+    return False
+
+def wall_to_right(Rover, threshold=10):
+
+    # use the rover's yaw as a direction-finding mechanism
+    if peer_right(Rover, 0) > threshold:
+        return True
+    return False
+
+def move_forward(Rover):
+
+    if at_max_velocity(Rover):
+        # coast
+        coast(Rover)
+    else:
+        throttle_forward(Rover)
+
 
 
 def wander_strategy(Rover):
@@ -119,14 +236,7 @@ def wander_strategy(Rover):
         if pathway_clear(Rover, Rover.stop_forward):
             # If mode is forward, navigable terrain looks good
             # and velocity is below max, then throttle
-            if at_max_velocity(Rover):
-                # coast
-                coast(Rover)
-            else:
-                # Set throttle value to throttle setting
-
-                throttle_forward(Rover)
-
+            move_forward(Rover)
             steer_to_center_of_view(Rover)
         # If there's a lack of navigable terrain pixels then go to 'stop' mode
         else:
@@ -144,37 +254,123 @@ def wander_strategy(Rover):
             brake(Rover)
 
 
-def follow_wall_strategy(Rover):
-
-    # if there is a wall to the left or the right and unexplored space in front of the rover, drive straight ahead
-
-    # define what point is straight ahead
-        # take yaw and determine which cell is in front of the rover relative to this cell = target_cell
-
-    # define what grid points are to left and right of the rover
-        ## if there is a wall to the right, use the parallel to that wall
-
-        ## else if there is a wall to the left use the parallel to that wall
+def angle_between_line_and_xaxis(line_coeff):
+    line_coeff = np.array(line_coeff)
+    xax_coeff = np.array([1., 0.])
+    G = xax_coeff.dot(line_coeff)/np.sqrt(line_coeff.dot(line_coeff))
+    return np.arcsin(G) * 180. / 3.1415
 
 
-    # if the space in front of the rover has not been visited and there is no object known to be in the next grid point
-        # steer towards that point by finding a parallel to the wall
+def map_visual_input_to_left_grid(image, default_grid_size=40, default_input_dimension=[320,160]):
+
+    # this selects out the left side of the grid via the arguments in the marked line
+    X = []
+    y = []
+
+    xstart = default_grid_size
+    ystart = default_grid_size
+    xlim = default_input_dimension[0]/2 # here we're selecting xgrid [0,160] which is left of the camera
+    ylim = default_input_dimension[1]
+    for i, r in enumerate(image[xstart:xlim-1, ystart:ylim-1]):
+        for j, c in enumerate(r):
+            X.append([default_grid_size - i, default_grid_size - j])
+            if c != 0.:
+                y.append(1)
+            else:
+                y.append(0)
+    X = np.array(X)
+    y = np.array(y)
+    return X, y
+
+
+def choose_direction(Rover):
+    X, y = map_visual_input_to_left_grid(Rover.img)
+    lin = linear_model.LinearRegression()
+    lin.fit(X, y)
+    return angle_between_line_and_xaxis(lin.coef_)
+
+
+def track_wall(Rover, track='left'):
+
+    # track wall uses visual input and the presumption of correctly analyzed obstacle input to enable the rover
+    # to track the wall
+    # if not, sets the rover to 'seeking_wall' mode and allows it to drive straight.
+    if track == 'left':
+        angle = choose_direction(Rover)
+        if angle > 15:
+            Rover.steer = 14.9
+            Rover.state = 'seeking_wall'
+        else:
+            Rover.steer = angle
 
 
 
+def follow_left_strategy(Rover):
 
+    if is_moving(Rover):
 
-    #if Rover.memorymap[target_y, target_x, 0] == 0 and Rover.worldmap[target_y, target_x, 0] >
+        if Rover.state != 'following_wall_left':
+            if pathway_clear(Rover, Rover.stop_forward):
+                coast(Rover)
+            else:
+                stop(Rover)
+                Rover.state = 'following_wall_left'
 
+        elif Rover.state == 'following_wall_left':
+            if pathway_clear(Rover, Rover.stop_forward):
+                if wall_to_left(Rover):
+                    track_wall(Rover)
+                else:
+                    stop(Rover)
 
+    elif is_stopping(Rover):
 
+        if Rover.state != 'following_wall_left':
 
-    # if there is no unexplored space in front of the rover or there is an obstacle in front, return to wander strategy
+            # If we're not moving (vel < 0.2) then do something else
+            if is_stopped(Rover):
 
+                if wall_in_front(Rover):
 
+                    # there's a wall so we want to turn right
+                    hard_turn_right(Rover)
+                    Rover.state = 'following_wall_left'
 
-    pass
+                elif wall_to_left(Rover) and pathway_clear(Rover, Rover.stop_forward):
 
+                    track_wall(Rover)
+
+                    Rover.state = 'following_wall_left'
+                else:
+
+                    # rover is stopped and there's no wall in front and no wall to left - strategy failed. Keep wandering.
+                    escape_obstacle_strategy(Rover)
+                    Rover.state = 'wandering'
+            else:
+                # If we're in stop mode but still moving keep braking
+                brake(Rover)
+
+        elif Rover.state == 'following_wall_left':
+            # If we're not moving (vel < 0.2) then do something else
+            if is_stopped(Rover):
+                # Now we're stopped and we have vision data to see if there's a path forward
+                if wall_in_front(Rover) or not pathway_clear(Rover, Rover.stop_forward):
+                    hard_turn_right(Rover)
+                    Rover.state = 'following_wall_left'
+
+                elif wall_to_left(Rover) and not wall_in_front(Rover) and pathway_clear(Rover, Rover.stop_forward):
+                    track_wall(Rover)
+                    move_forward(Rover)
+                    Rover.state = 'following_wall_left'
+
+                elif not wall_to_left(Rover) and not wall_in_front(Rover):
+
+                    # we lost the wall, and we're stuck on an obstacle
+                    escape_obstacle_strategy(Rover)
+                    Rover.state = 'wandering'
+            else:
+                # If we're in stop mode but still moving keep braking
+                brake(Rover)
 
 
 def decision_step(Rover):
@@ -188,7 +384,9 @@ def decision_step(Rover):
     if telemetry(Rover):
 
         # if nothing else is happening, allow the rover to wander
-        wander_strategy(Rover)
+        #wander_strategy(Rover)
+
+        follow_left_strategy(Rover)
 
         # else find a wall
 
