@@ -29,7 +29,7 @@ Due to technical troubles getting the project setup, and running weeks behind, I
 ![wall_left_strategy](./misc/follow_left_strategy.png)
 
 
-Resubmission:
+**Resubmission:**
 
 After the above results, I went back and wrote a more complex algorithm that focuses on hugging the left walls and trying to follow the wall left at all times. This is achieved by changing the steering method from calculating the mean of all visible angles to one that calculates the mean of only the left angles (the code can be easily switched to right side walls). This is done with the steer_for_wall() and crush_angles_left() functions. In addition to this, and equally important, I added an improved color_thresh() method that includes both upper and lower bounds. This enables the ability to filter out bright sands on the terrain map, using an upper threshold of (235,235,235). The bright sands in the distance seem to confound the standard path setting method. By using this upper threshold we can see that only local, meaningful angles are perceived by the rover. I also added functions that enable the rover to consider different state changes and return to previous states. This gives it some memory and enables a very effective .attempt_escape() method.
 
