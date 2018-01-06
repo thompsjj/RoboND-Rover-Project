@@ -1,19 +1,23 @@
 import numpy as np
 import cv2
+import time
 
 # Identify pixels above the threshold
 # Threshold of RGB > 160 does a nice job of identifying ground pixels only
-def color_thresh(img, rgb_thresh):
+def color_thresh(img, low_thresh=(160,160,160), hi_thresh=(255,255,255)):
     # Create an array of zeros same xy size as img, but single channel
     color_select = np.zeros_like(img[:, :, 0])
     # Require that each pixel be above all three threshold values in RGB
     # above_thresh will now contain a boolean array with "True"
     # where threshold was met
-    above_thresh = (img[:, :, 0] > rgb_thresh[0]) \
-                & (img[:, :, 1] > rgb_thresh[1]) \
-                & (img[:, :, 2] > rgb_thresh[2])
+    match = (img[:,:,0] > low_thresh[0])      \
+                & (img[:,:,0] <= hi_thresh[0]) \
+                & (img[:,:,1] > low_thresh[1])  \
+                & (img[:,:,1] <= hi_thresh[1]) \
+                & (img[:,:,2] > low_thresh[2])  \
+                & (img[:,:,2] <= hi_thresh[2])
     # Index the array of zeros with the boolean array and set to 1
-    color_select[above_thresh] = 1
+    color_select[match] = 1
     # Return the binary image
     return color_select
 
@@ -91,9 +95,34 @@ def warp_image_to_perspective(image, dst_size=5,
                       ])
     return perspect_transform(image, source, destination)
 
+
+def pitch_small(Rover):
+    if Rover.pitch < 2. or Rover.pitch > 358:
+        return True
+    return False
+
+
+def roll_small(Rover):
+    if Rover.roll < 2. or Rover.roll > 358:
+        return True
+    return False
+
+
+def map_locked(Rover):
+    if pitch_small(Rover) and roll_small(Rover):
+        return False
+    return True
+
+
+def limit_range(xpix, ypix, range=80):
+
+    dist = np.sqrt(pow(xpix,2) + pow(ypix,2))
+    return xpix[dist < range], ypix[dist < range]
+
+
 def update_rover_vision(Rover, warped, mask):
 
-    thr = color_thresh(warped, rgb_thresh=(160,160,160))
+    thr = color_thresh(warped, low_thresh=(175, 175, 175), hi_thresh=(230, 230, 230)) # (170,170,170) works
     obs = np.absolute(np.float32(thr)-1) * mask
 
     Rover.vision_image[:, :, 0] = obs*255
@@ -101,18 +130,23 @@ def update_rover_vision(Rover, warped, mask):
 
     return thr, obs
 
+
 def update_rover_worldmap(Rover, map, map_number=0, additive_const=1, world_size = 200, scale = 10, update_nav=False):
 
-    xpix, ypix = rover_coords(map)
-    xworld, yworld = pix_to_world(xpix, ypix, Rover.pos[0],Rover.pos[1], Rover.yaw, world_size, scale)
-    Rover.worldmap[yworld, xworld, map_number] += additive_const
+    if not map_locked(Rover):
+        xpix_raw, ypix_raw = rover_coords(map)
+        xpix, ypix = limit_range(xpix_raw, ypix_raw)
+        xworld, yworld = pix_to_world(xpix, ypix, Rover.pos[0],Rover.pos[1], Rover.yaw, world_size, scale)
+        Rover.worldmap[yworld, xworld, map_number] += additive_const
 
-    if update_nav:
-        dists, angles = to_polar_coords(xpix, ypix)
-        Rover.nav_angles = angles
-        Rover.nav_dists = dists
+        if update_nav:
+            dists, angles = to_polar_coords(xpix, ypix)
+            Rover.nav_angles = angles
+            Rover.nav_dists = dists
+        return True
+    else:
+        return False
 
-    return True
 
 def find_rocks(img, levels=(110,110,50)):
     rock_pix = (img[:, :, 0] > levels[0]) \
@@ -123,15 +157,23 @@ def find_rocks(img, levels=(110,110,50)):
     color_select[rock_pix] = 1
     return color_select
 
+def clean_map(Rover):
+    Rover.worldmap[Rover.worldmap[:, :, 2] > 0, 0] = 0
+    Rover.worldmap = np.clip(Rover.worldmap, 0, 255)
+
 
 def update_rock_map(Rover, warped_image):
-    rock_map = find_rocks(warped_image)
+
+    rock_map = color_thresh(warped_image, low_thresh=(110, 95, 40), hi_thresh=(232, 200, 75))
     if rock_map.any():
 
         xpix, ypix = rover_coords(rock_map)
         xworld, yworld = pix_to_world(xpix, ypix, Rover.pos[0], Rover.pos[1], Rover.yaw, world_size=200, scale=10)
 
         dists, angles = to_polar_coords(xworld,yworld)
+
+        Rover.sample_dists = dists
+        Rover.sample_angles = angles
 
         rock_idx = np.argmin(dists)
         rock_xcen = xworld[rock_idx]
@@ -160,13 +202,16 @@ def perception_step(Rover):
 
     threshed_map, obstacle_threshed_map = update_rover_vision(Rover, warped, mask)
 
+    Rover.terrain_img = threshed_map
+
     update_rover_worldmap(Rover, threshed_map, map_number=2, additive_const=10, world_size=200, scale=10, update_nav=True)
 
     update_rover_worldmap(Rover, obstacle_threshed_map, map_number=0, additive_const=1, world_size=200, scale=10, update_nav=False)
 
     update_rock_map(Rover, warped)
 
-    update_memory(Rover)
+    clean_map(Rover)
 
+    update_memory(Rover)
 
     return Rover

@@ -23,26 +23,30 @@ I took the boilerplate code provided in the walkthrough and refactored it so tha
 
 #### 2. Launching in autonomous mode your rover can navigate and map autonomously.  Explain your results and how you might improve them in your writeup.  
 
-Due to technical troubles getting the project setup, and running weeks behind, I submitted the project without any special AI. Using the default search method, wander_strategy(), and a threshold for navigable terrain (175,175,175), the rover wanders toward the center of its detected navigable terrain unless executing the escape_obstacle_strategy(). This enables the rover to map 70.1% of the terrain at 60.7% fidelity after about 3 minutes. It finds only a few of the rocks in this simulation. The rover does not pick up rocks, although it faithfully maps several of them. Lowering the terrain threshold to (160,160,160) or even lower to (120,120,120) allows the rover to accurately and quickly traverse up to 98% of the map and find every rock, although the fidelity drops below 50% pretty quickly. 
+Due to technical troubles getting the project setup, and running weeks behind, Ioriginally submitted the project without any special AI. Using the default search method, wander_strategy(), and a threshold for navigable terrain (175,175,175), the rover wanders toward the center of its detected navigable terrain unless executing the escape_obstacle_strategy(). This enables the rover to map 70.1% of the terrain at 60.7% fidelity after about 3 minutes. It finds only a few of the rocks in this simulation. The rover does not pick up rocks, although it faithfully maps several of them. Lowering the terrain threshold to (160,160,160) or even lower to (120,120,120) allows the rover to accurately and quickly traverse up to 98% of the map and find every rock, although the fidelity drops below 50% pretty quickly. 
 
 
 ![wall_left_strategy](./misc/follow_left_strategy.png)
 
-The follow_wall_left() strategy was also implemented, enabling the rover to track the wall left by first seeking contact with a wall, then finding a parallel to the wall as its steering heading. This makes higher fidelity exploration possible, with 46.4% of the map explored and 68.2% fidelity after about a minute and 15 seconds. 
 
-![wander_strategy](./misc/wander_strategy.png)
+Resubmission:
 
+After the above results, I went back and wrote a more complex algorithm that focuses on hugging the left walls and trying to follow the wall left at all times. This is achieved by changing the steering method from calculating the mean of all visible angles to one that calculates the mean of only the left angles (the code can be easily switched to right side walls). This is done with the steer_for_wall() and crush_angles_left() functions. In addition to this, and equally important, I added an improved color_thresh() method that includes both upper and lower bounds. This enables the ability to filter out bright sands on the terrain map, using an upper threshold of (235,235,235). The bright sands in the distance seem to confound the standard path setting method. By using this upper threshold we can see that only local, meaningful angles are perceived by the rover. I also added functions that enable the rover to consider different state changes and return to previous states. This gives it some memory and enables a very effective .attempt_escape() method.
 
+In addition to these improvements, I added a smooth_steering method that averages new steering inputs with the previous 5 changes. This averages out crazy steering changes. (other settings are possible) This is a blunt tool, and I imagine other ideas are possible, for example building up a histogram of inputs and then using a simulated circuit that looks for discontinuities in the steering input, and averages the inputs out before outputting to the steering. This strategy easily completes over 80% of the mapping with over 80% fidelity.
 
-This result meets the minimum for the project and can still be improved. I will be implementing improvements in the coming weeks:
+![upgraded_strategy](./misc/upgraded_strategy.png)
 
-1) Upgrades to the wall-following strategy. The wall-following strategy could benefit from some additional tuning.
+A passive rock-retrieval strategy is in place. It only works if the rover is in a clear line-of-sight to the rock and a short distance away. Due to the structure of the arena, this rarely happens and is not something that can be counted upon.
 
-2) An exploring strategy - this would following something like a flood search strategy that would enable the rover to exhaustively explore the area near it using the already implied world grid. 
+Improvements that can be made:
 
-3) Rock-retrieval strategy - this would plot a direction towards a rock, drive to it, and pick it up. A simple method would include just taking the steering direction in a direct line to the rock. This may require a different obstacle escape strategy as well.
+1) Upgrades to the wall-following strategy. The wall-following strategy could still benefit from some additional tuning. The crush_angles_method might be improved by considering percentiles of angles, and also filtering out or averaging out nonsense steering angles when they happen, i.e. suddenly steering to -15 when the last 20 steering inputs have a mean of 5. In general this is a problem that could be solved with the above idea of looking for extreme changes in behavior in a single process variable (i.e. steering input).
 
-4) A finite state machine - I believe the rover would complete the challenge faster if it was able to switch between different strategies based on context. 
+2) An exploring strategy - this would following something like a flood search strategy that would enable the rover to exhaustively explore the area near it using the already implied world grid. Given my understanding of the "fidelity" metric, it is likely such a strategy would imperil the goals of the project
+
+3) An active rather than passive rock-retrieval strategy - this would stop the rover, target a rock in terms of its grid location, plot a direction towards a rock, drive to it, and pick it up. Such a method would require some sort of plotting, memory-based method akin to the above grid concept. I have implemented basic attributes to the rover state class to be able to achieve these goals. 
+
 
 I wish that other sensor data was available other than a camera.
 

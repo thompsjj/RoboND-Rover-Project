@@ -40,6 +40,8 @@ class RoverState():
     def __init__(self):
         self.start_time = None # To record the start time of navigation
         self.total_time = None # To record total duration of naviagation
+        self.collection_time = None
+        self.obstructed_time = None
         self.img = None # Current camera image
         self.pos = None # Current position (x, y)
         self.yaw = None # Current yaw angle
@@ -47,6 +49,7 @@ class RoverState():
         self.roll = None # Current roll angle
         self.vel = None # Current velocity
         self.steer = 0 # Current steering angle
+        self.steer_history = []
         self.throttle = 0 # Current throttle value
         self.brake = 0 # Current brake value
         self.nav_angles = None # Angles of navigable terrain pixels
@@ -59,9 +62,9 @@ class RoverState():
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
         # get creative in adding new fields or modifying these!
-        self.stop_forward = 50 # Threshold to initiate stopping
+        self.stop_forward = 100 # Threshold to initiate stopping
         self.go_forward = 500 # Threshold to go forward again
-        self.max_vel = 2 # Maximum velocity (meters/second)
+        self.max_vel = 3 # Maximum velocity (meters/second)
         # Image output from perception step
         # Update this image to display your intermediate analysis steps
         # on screen in autonomous mode
@@ -74,13 +77,17 @@ class RoverState():
         self.samples_to_find = 0 # To store the initial count of samples
         self.samples_located = 0 # To store number of samples located on map
         self.samples_collected = 0 # To count the number of samples collected
+        self.sample_angles = None
+        self.sample_dists = None
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
 
         #Memorymap
+        self.terrain_img = None
         self.memorymap = np.zeros((200, 200, 1), dtype=np.float)
-        self.state = 'wandering' # (can be 'wandering', 'exploring', 'collecting_sample', 'escaping', 'looking_around')
+        self.state = ['wandering'] # (can be 'wandering', 'exploring', 'collecting_sample', 'escaping', # 'looking_around', 'following_wall_left', 'following_wall_right')
+        self.facing = None
 
 # Initialize our rover 
 Rover = RoverState()
